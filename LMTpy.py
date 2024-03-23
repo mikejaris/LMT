@@ -59,7 +59,7 @@ class Experiment(Instruments):
             t.append(time.time())
             v.append(self.daq.voltage())
             
-            if t[-1]-t[0]-img_time>IMG_DELAY:
+            if t[-1]-img_time>IMG_DELAY:
                 imgs[cnt]=qb.get_img(self.cam)
                 cnt+=1
                 img_time=t[-1]
