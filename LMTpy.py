@@ -105,7 +105,7 @@ class Experiment(Instruments):
                 t.append(time.time())
                 v.append(self.daq.voltage())
                 
-                if TAKE_IMGS and (t[-1]-t[0]-img_time)>IMG_DELAY:
+                if TAKE_IMGS and (t[-1]-img_time)>IMG_DELAY:
                     img_fn = filename(savepath,t[-1]-t[0])
                     img=self.save_img(img_fn)
                     img_time=t[-1]
