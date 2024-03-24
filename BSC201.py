@@ -88,7 +88,7 @@ class BSC201:
     def set_jog_step_size(self,step_size=0.05):
         self.channel.SetJogStepSize(Decimal(float(step_size)))
         
-    def move_relative(self,distance):
+    def move_relative(self,distance=0.001):
         self.channel.SetMoveRelativeDistance(Decimal(float(distance)))
         self.channel.MoveRelative(10000)
     
@@ -103,3 +103,11 @@ class BSC201:
     @property
     def position(self):
         return self.get_position()
+
+    def move_smooth(self,pos_mm,step_size=0.001):
+        num_moves = int((pos_mm-self.position)/step_size)
+        self.channel.SetMoveRelativeDistance(Decimal(float(step_size)))
+        for i in range(num_moves):
+            self.channel.MoveRelative(10000)
+
+        

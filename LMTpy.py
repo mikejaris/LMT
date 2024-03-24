@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import time
 from BSC201 import BSC201
 from datetime import datetime
+import pickle
+
 class Instruments:
     def __init__(self,**kwargs):
         try:
@@ -38,15 +40,25 @@ class Experiment(Instruments):
         img=qb.get_img(self.camera) #200 ms?
         plt.imsave(filename,img)
         return img
+
+    def init_savepath(self,FOLDER_NAME=None):
+        if not os.path.exists(self.FILEPATH): os.mkdir(self.FILEPATH)
+        if FOLDER_NAME is None: FOLDER_NAME = datetime.now().strftime('%y%m%d-%H%M%S')
+        folder_path=os.path.join(self.FILEPATH,FOLDER_NAME)
+        if not os.path.exists(folder_path): os.mkdir(folder_path)
+        return folder_path
     
-    def timed_measurement(self,DURATION=10,DELAY=5,IMG_DELAY=0.5,**kwargs):
+    def timed_measurement(self,DURATION=10,START_DELAY=5,IMG_DELAY=0.5,SHOW_IMGS=True,**kwargs):
         for k,v in kwargs.items(): setattr(self,k,v)
         num_imgs = int(DURATION//IMG_DELAY)
         imgs=np.zeros((num_imgs,2160,3840,4),dtype=np.uint8)
         
-        dt = DELAY/10
+        if isinstance(self,'fignum') and SHOW_IMGS: fig=plt.figure(self.fignum)
+        elif SHOW_IMGS: plt.figure()
+
+        dt = START_DELAY/10
         for i in range(10):
-            print('\r','Starting measurement in %0.1f seconds' %(DELAY-i*dt),end='')
+            print('\r','Starting measurement in %0.1f seconds' %(START_DELAY-i*dt),end='')
             time.sleep(dt)
         
         v=[self.daq.voltage()]
@@ -60,24 +72,95 @@ class Experiment(Instruments):
             v.append(self.daq.voltage())
             
             if t[-1]-img_time>IMG_DELAY:
-                imgs[cnt]=qb.get_img(self.cam)
+                img = qb.get_img(self.cam)
+                imgs[cnt]=img
                 cnt+=1
                 img_time=t[-1]
+                if SHOW_IMGS:
+                    plt.cla()
+                    plt.imshow(img)
+                    plt.title(f'Angle = {deg} degrees',fontsize=20)
+                    plt.pause(0.01)
+
         data={'time':t,'voltage':v,'imgs':imgs}
         return data
-                
-            
-    def motor_scan(self,DEGREES,IMG_DELAY=0.5,SHOW_LAST_IMG=True,VOLT_THRESH=0.005,
+
+    def motor_scan_timed(self,DEGREES,DURATION=10,START_DELAY=5,IMG_DELAY=0.5, 
+                        FOLDER_NAME=None,SHOW_IMGS=True, PAUSE_BETWEEN=False, **kwargs):
+        for k,v in kwargs.items(): setattr(self,k,v)
+
+        folder_path = self.init_savepath(FOLDER_NAME)
+
+        if SHOW_IMGS:
+            fig = plt.figure()
+            self.fignum = fig.number
+
+        for deg in DEGREES:
+            savepath = os.path.join(folder_path,'Stage angle %0.2f degrees'%deg)
+            if os.path.exists(savepath) and len(os.listdir(savepath))>0: raise FileExistsError('Duplicate savepath was detected in %s, please change dirpath to prevent overwriting data')
+            if not os.path.exists(savepath): os.mkdir(savepath)
+
+            pos=self.deg_to_pos(deg)
+            self.motor.move(pos)
+
+            print('\n Stage angle at %0.2f degrees, prepare to press button to measure for %0.1f seconds (PAUSE_BEWEEN is %s)'%(deg,DURATION,PAUSE_BETWEEN))
+            if PAUSE_BETWEEN: input('\n Press any button to begin timed measurement (START_DELAY is %0.1f seconds)'%START_DELAY)
+
+            data = self.timed_measurement(DURATION,START_DELAY,IMG_DELAY,SHOW_IMGS)
+            with open(os.path.join(savepath,'Stage angle %0.2f degrees.pickle'),'wb') as f:
+                pickle.dump(f,data)
+
+
+    def jog_motor_timed(self,STEP_SIZE=0.5,DURATION=10,START_DELAY=5,IMG_DELAY=0.5,
+                        FOLDER_NAME=None,SHOW_IMGS=True,PAUSE_BETWEEN=False,**kwargs):
+        for k,v in kwargs.items(): setattr(self,k,v)
+
+        folder_path = self.init_savepath(FOLDER_NAME)
+
+        if SHOW_IMGS:
+            fig = plt.figure()
+            self.fignum = fig.number
+
+        print('\n Entering measurement loop, press ctrl+c to end')
+
+        try:
+            while True:
+                value = input('\n Press 1 to increase angle, 2 to decrease angle, 3 to take measurement at same position, or 4 to change STEP_SIZE')
+                if value not in ['1','2','3','4']: continue
+
+                current_angle = self.pos_to_deg(self.motor.position)
+                if value is '1':
+                    current_angle+=STEP_SIZE
+                    next_pos = self.deg_to_pos(current_angle)
+                    self.motor.move(next_pos)
+
+                elif value is '2':
+                    current_angle-=STEP_SIZE
+                    next_pos=self.deg_to_pos(current_angle)
+                    self.motor.move(next_pos)
+
+                elif value is '4':
+                    STEP_SIZE = float(input('Enter new STEP_SIZE value (current value is %0.2f degrees)'%STEP_SIZE))
+                    continue
+
+
+                data = self.timed_measurement(DURATION,START_DELAY,IMG_DELAY,SHOW_IMGS)
+                with open(os.path.join(folder_path,'Stage angle %0.2f degrees (%s).pickle'%datetime.now().strftime('%y%m%d-%H%M%S')),'wb') as f:
+                    pickle.dump(f,data)
+
+        except:
+            pass
+
+
+    def motor_scan_on_button_press(self,DEGREES,IMG_DELAY=0.5,SHOW_IMGS=True,VOLT_THRESH=0.005,
         PAUSE=True,TAKE_IMGS=True, NUM_VOLT_AVG=30,FOLDER_NAME=None,**kwargs):
         for k,v in kwargs.items(): setattr(self,k,v)
 
-        if not os.path.exists(self.FILEPATH): os.mkdir(self.FILEPATH)
-        filename = lambda fpath, timestamp: os.path.join(fpath,'Time elapsed - %0.1f seconds.tiff'%timestamp)
-        if FOLDER_NAME is None: FOLDER_NAME = datetime.now().strftime('%y%m%d-%H%M%S')
-        folder_path=os.path.join(self.FILEPATH,FOLDER_NAME)
-        if not os.path.exists(folder_path): os.mkdir(folder_path)
+        folder_path = self.init_savepath(FOLDER_NAME)
 
-        if SHOW_LAST_IMG: plt.figure()
+        filename = lambda fpath, timestamp: os.path.join(fpath,'Time elapsed - %0.1f seconds.tiff'%timestamp)
+
+        if SHOW_IMGS: plt.figure()
 
         for deg in DEGREES:
             savepath = os.path.join(folder_path,'Stage angle %0.2f degrees'%deg)
@@ -109,18 +192,17 @@ class Experiment(Instruments):
                     img_fn = filename(savepath,t[-1]-t[0])
                     img=self.save_img(img_fn)
                     img_time=t[-1]
+                    if SHOW_IMGS:
+                        plt.cla()
+                        plt.imshow(img)
+                        plt.title(f'Angle = {deg} degrees',fontsize=20)
+                        plt.pause(0.01)
                 
                 if len(v)>NUM_VOLT_AVG and np.mean(v[-NUM_VOLT_AVG:]) < VOLT_THRESH: 
                     break
             
             np.save(os.path.join(savepath,'voltages'),np.vstack((t,v)))
             print('Button release detected, system has stopped recording data. %i images/data points were recorded'%len(v))
-
-            if SHOW_LAST_IMG:
-                plt.cla()
-                plt.imshow(img)
-                plt.title(f'Angle = {deg} degrees',fontsize=20)
-                plt.pause(0.01)
                 
             if PAUSE:
                 input("\n\nPress any key to advance to next position")
