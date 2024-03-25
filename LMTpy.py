@@ -12,10 +12,19 @@ class Instruments:
     def __init__(self,**kwargs):
         try:
             self.motor = BSC201()
+        except:
+            raise ConnectionError('Failed to connect to the motor')
+        try:
             self.camera = qb.connect_cam()
+        except:
+            self.motor.disconnect()
+            raise ConnectionError('Failed to connect to the camera')
+        try:
             self.daq = MCC_DAQ()
         except:
-            pass
+            self.motor.disconnect()
+            self.camera.Close()
+            raise ConnectionError('Failed to connect to the DAQ')
 
 
 class Experiment(Instruments):
