@@ -153,7 +153,7 @@ class Experiment(Instruments):
 
 
     def motor_scan_on_button_press(self,DEGREES,IMG_DELAY=0.5,SHOW_IMGS=True,VOLT_THRESH=0.005,
-        PAUSE=True,TAKE_IMGS=True, NUM_VOLT_AVG=30,FOLDER_NAME=None,**kwargs):
+        PAUSE=True,TAKE_IMGS=True, NUM_VOLT_AVG=30,FOLDER_NAME=None,BUTTON_CHAN=0,**kwargs):
         for k,v in kwargs.items(): setattr(self,k,v)
 
         folder_path = self.init_savepath(FOLDER_NAME)
@@ -161,6 +161,12 @@ class Experiment(Instruments):
         filename = lambda fpath, timestamp: os.path.join(fpath,'Time elapsed - %0.1f seconds.tiff'%timestamp)
 
         if SHOW_IMGS: plt.figure()
+
+            
+        NOT_BUTTON_CHANS = self.daq.CHANNELS.copy()
+        NOT_BUTTON_CHANS.pop(NOT_BUTTON_CHANS.index(BUTTON_CHAN))
+        other_daq_channels = lambda: [self.daq.voltage(CHANNEL=CHAN) for CHAN in NOT_BUTTON_CHANS]
+
 
         for deg in DEGREES:
             savepath = os.path.join(folder_path,'Stage angle %0.2f degrees'%deg)
@@ -170,24 +176,31 @@ class Experiment(Instruments):
             pos=self.deg_to_pos(deg)
             self.motor.move(pos)
 
-            v = [self.daq.voltage() for i in range(NUM_VOLT_AVG)]
+            v = [self.daq.voltage(BUTTON_CHAN) for i in range(NUM_VOLT_AVG)]
             t=[time.time()]*NUM_VOLT_AVG
+            if len(self.daq.CHANNELS)>1: vc=[other_daq_channels() for i in range(NUM_VOLT_AVG)]
+
             while np.mean(v) < VOLT_THRESH:
                 print('\r','Motor is in position, system is ready to take data when button press is detected (current reading = %0.2f'%np.mean(v), end='')
                 v.append(self.daq.voltage())
                 v.pop(0)
                 t.append(time.time())
                 t.pop(0)
+                if len(self.daq.CHANNELS)>1: 
+                    vc.append(other_daq_channels())
+                    vc.pop(0)
+
             print('\n\n')
-            
+
             img_time=t[0]
             self.save_img(filename(savepath,time.time()-t[0]))
             while True:
                 print('\r','Button press detected, recording data (time elapsed = %0.1f seconds)'%(time.time()-t[0]),end='')
 
                 t.append(time.time())
-                v.append(self.daq.voltage())
-                
+                v.append(self.daq.voltage(BUTTON_CHAN))
+                if len(self.daq.CHANNELS)>1: vc.append(other_daq_channels())
+
                 if TAKE_IMGS and (t[-1]-img_time)>IMG_DELAY:
                     img_fn = filename(savepath,t[-1]-t[0])
                     img=self.save_img(img_fn)
@@ -198,10 +211,14 @@ class Experiment(Instruments):
                         plt.title(f'Angle = {deg} degrees',fontsize=20)
                         plt.pause(0.01)
                 
-                if len(v)>NUM_VOLT_AVG and np.mean(v[-NUM_VOLT_AVG:]) < VOLT_THRESH: 
+                if np.mean(v[-NUM_VOLT_AVG:]) < VOLT_THRESH: 
                     break
             
-            np.save(os.path.join(savepath,'voltages'),np.vstack((t,v)))
+            if len(self.daq.CHANNELS)==1:
+                data = np.vstack((t,v))
+            else:
+                data = np.vstack((t,v,vc))
+            np.save(os.path.join(savepath,'voltages'),)
             print('Button release detected, system has stopped recording data. %i images/data points were recorded'%len(v))
                 
             if PAUSE:
