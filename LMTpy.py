@@ -24,6 +24,9 @@ class Experiment(Instruments):
 
         if not hasattr(self,'inst'): 
             self.inst=Instruments()
+        for k,v in vars(self.inst).items():
+            setattr(self,k,getattr(self.inst,k))
+            
         if not hasattr(self,'FILEPATH'): setattr(self,'FILEPATH',os.path.join(os.getcwd(),datetime.now().strftime('%d%m%y')))
 
     @staticmethod
@@ -51,9 +54,9 @@ class Experiment(Instruments):
     def timed_measurement(self,DURATION=10,START_DELAY=5,IMG_DELAY=0.5,SHOW_IMGS=True,**kwargs):
         for k,v in kwargs.items(): setattr(self,k,v)
         num_imgs = int(DURATION//IMG_DELAY)
-        imgs=np.zeros((num_imgs,2160,3840,4),dtype=np.uint8)
+        imgs=np.zeros((num_imgs,2160,3840,3),dtype=np.uint8)
         
-        if isinstance(self,'fignum') and SHOW_IMGS: fig=plt.figure(self.fignum)
+        if hasattr(self,'fignum') and SHOW_IMGS: fig=plt.figure(self.fignum)
         elif SHOW_IMGS: plt.figure()
 
         dt = START_DELAY/10
@@ -67,19 +70,18 @@ class Experiment(Instruments):
         img_time=t[0]
         
         cnt=1
-        while time.time()-[0]<DURATION and cnt<num_imgs:
+        while time.time()-t[0]<DURATION and cnt<num_imgs:
             t.append(time.time())
             v.append(self.daq.voltage())
             
             if t[-1]-img_time>IMG_DELAY:
-                img = qb.get_img(self.cam)
+                img = qb.get_img(self.camera)
                 imgs[cnt]=img
                 cnt+=1
                 img_time=t[-1]
                 if SHOW_IMGS:
                     plt.cla()
                     plt.imshow(img)
-                    plt.title(f'Angle = {deg} degrees',fontsize=20)
                     plt.pause(0.01)
 
         data={'time':t,'voltage':v,'imgs':imgs}
@@ -108,7 +110,7 @@ class Experiment(Instruments):
 
             data = self.timed_measurement(DURATION,START_DELAY,IMG_DELAY,SHOW_IMGS)
             with open(os.path.join(savepath,'Stage angle %0.2f degrees.pickle'),'wb') as f:
-                pickle.dump(f,data)
+                pickle.dump(data,f)
 
 
     def jog_motor_timed(self,STEP_SIZE=0.5,DURATION=10,START_DELAY=5,IMG_DELAY=0.5,
@@ -123,33 +125,33 @@ class Experiment(Instruments):
 
         print('\n Entering measurement loop, press ctrl+c to end')
 
-        try:
-            while True:
-                value = input('\n Press 1 to increase angle, 2 to decrease angle, 3 to take measurement at same position, or 4 to change STEP_SIZE')
-                if value not in ['1','2','3','4']: continue
+        # try:
+        while True:
+            value = input('\n Press 1 to increase angle, 2 to decrease angle, 3 to take measurement at same position, or 4 to change STEP_SIZE')
+            if value not in ['1','2','3','4']: continue
 
-                current_angle = self.pos_to_deg(self.motor.position)
-                if value is '1':
-                    current_angle+=STEP_SIZE
-                    next_pos = self.deg_to_pos(current_angle)
-                    self.motor.move(next_pos)
+            current_angle = self.pos_to_deg(self.motor.position)
+            if value == '1':
+                current_angle+=STEP_SIZE
+                next_pos = self.deg_to_pos(current_angle)
+                self.motor.move(next_pos)
 
-                elif value is '2':
-                    current_angle-=STEP_SIZE
-                    next_pos=self.deg_to_pos(current_angle)
-                    self.motor.move(next_pos)
+            elif value == '2':
+                current_angle-=STEP_SIZE
+                next_pos=self.deg_to_pos(current_angle)
+                self.motor.move(next_pos)
 
-                elif value is '4':
-                    STEP_SIZE = float(input('Enter new STEP_SIZE value (current value is %0.2f degrees)'%STEP_SIZE))
-                    continue
+            elif value == '4':
+                STEP_SIZE = float(input('Enter new STEP_SIZE value (current value is %0.2f degrees)'%STEP_SIZE))
+                continue
 
 
-                data = self.timed_measurement(DURATION,START_DELAY,IMG_DELAY,SHOW_IMGS)
-                with open(os.path.join(folder_path,'Stage angle %0.2f degrees (%s).pickle'%datetime.now().strftime('%y%m%d-%H%M%S')),'wb') as f:
-                    pickle.dump(f,data)
+            data = self.timed_measurement(DURATION,START_DELAY,IMG_DELAY,SHOW_IMGS)
+            with open(os.path.join(folder_path,'Stage angle %0.2f degrees (%s).pickle'%(current_angle,datetime.now().strftime('%y%m%d-%H%M%S'))),'wb') as f:
+                pickle.dump(data,f)
 
-        except:
-            pass
+        # except:
+        #     pass
 
 
     def motor_scan_on_button_press(self,DEGREES,IMG_DELAY=0.5,SHOW_IMGS=True,VOLT_THRESH=0.005,
