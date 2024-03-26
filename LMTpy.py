@@ -10,22 +10,38 @@ import pickle
 
 class Instruments:
     def __init__(self,**kwargs):
+        self.connect_all()
+        
+    def connect_all(self):
         try:
             self.motor = BSC201()
+            print('Motor is connected')
         except:
             raise ConnectionError('Failed to connect to the motor')
         try:
             self.camera = qb.connect_cam()
+            print('Camera is connected')
         except:
             self.motor.disconnect()
             raise ConnectionError('Failed to connect to the camera')
         try:
             self.daq = MCC_DAQ()
+            print('DAQ is connected')
         except:
             self.motor.disconnect()
             self.camera.Close()
             raise ConnectionError('Failed to connect to the DAQ')
 
+
+    def close_all(self):
+        try:
+            self.motor.disconnect()
+        except:
+            print('Motor did not disconnect succesfully')
+        try:
+            self.camera.Close()
+        except:
+            print('Camera did not close successfully')
 
 class Experiment(Instruments):
     def __init__(self,**kwargs):
@@ -68,6 +84,8 @@ class Experiment(Instruments):
         if hasattr(self,'fignum') and SHOW_IMGS: fig=plt.figure(self.fignum)
         elif SHOW_IMGS: plt.figure()
 
+        print('\n')
+    
         dt = START_DELAY/10
         for i in range(10):
             print('\r','Starting measurement in %0.1f seconds' %(START_DELAY-i*dt),end='')
@@ -136,7 +154,8 @@ class Experiment(Instruments):
 
         # try:
         while True:
-            value = input('\n Press 1 to increase angle, 2 to decrease angle, 3 to take measurement at same position, or 4 to change STEP_SIZE')
+            print('\n')
+            value = input('Press 1 to increase angle, 2 to decrease angle, 3 to take measurement at same position, or 4 to change STEP_SIZE')
             if value not in ['1','2','3','4']: continue
 
             current_angle = self.pos_to_deg(self.motor.position)
@@ -158,6 +177,8 @@ class Experiment(Instruments):
             data = self.timed_measurement(DURATION,START_DELAY,IMG_DELAY,SHOW_IMGS)
             with open(os.path.join(folder_path,'Stage angle %0.2f degrees (%s).pickle'%(current_angle,datetime.now().strftime('%y%m%d-%H%M%S'))),'wb') as f:
                 pickle.dump(data,f)
+                
+            print('\n')
 
         # except:
         #     pass
@@ -234,3 +255,7 @@ class Experiment(Instruments):
                 
             if PAUSE:
                 input("\n\nPress any key to advance to next position")
+                
+
+            
+        
