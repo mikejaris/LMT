@@ -110,4 +110,22 @@ class BSC201:
         for i in range(num_moves):
             self.channel.MoveRelative(10000)
 
+    @property
+    def max_velocity(self):
+        vp = self.channel.GetVelocityParams()
+        self._max_velocity=float(str(vp.MaxVelocity))
+        return self._max_velocity
+    
+    @property
+    def acceleration(self):
+        vp = self.channel.GetVelocityParams()
+        self._acceleration=float(str(vp.Acceleration))
+        return self._acceleration
+    
+    def set_velocity_params(self,max_velocity=1,accel= 1):
+        _vel0,_accel0 = self.max_velocity,self.acceleration
+        self.channel.SetVelocityParams(Decimal(float(max_velocity)),Decimal(float(accel)))
+        _vel,_accel = self.max_velocity,self.acceleration
         
+        print('Previous settings: max velocity was %0.2f, acceleration was %0.2f'%(_vel0,_accel0))
+        print('New settings: max velocity is %0.2f, acceleration is %0.2f'%(_vel,_accel))
