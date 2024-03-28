@@ -20,7 +20,7 @@ from Thorlabs.MotionControl.Benchtop.StepperMotorCLI import *
 
 
 class BSC201:
-    def __init__(self,serial_no = '40418024',DeviceType='DRV250',max_velocity=1,acceleration=1,**kwargs):
+    def __init__(self,serial_no = '40418024',DeviceType='DRV250',max_velocity=2,acceleration=1,**kwargs):
         self.DeviceType=DeviceType
         for k,v in kwargs.items():
             setattr(self,k,v)
