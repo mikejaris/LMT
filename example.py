@@ -17,12 +17,11 @@ import pickle
 # note that if inst.close_all() was called then inst.connect_all() must be called to re-establish comms
 # =============================================================================
 inst = lp.Instruments() if not 'inst' in var_dict.keys() else var_dict['inst']
-inst.daq.VOLT_RANGE=5
+#inst.motor.set_velocity_params(max_velocity=1,accel=1) #Motor 
 
 exp = lp.Experiment(inst=inst,FILEPATH=r'C:\users\SinglePixelCamera\Documents\LMT_Test')
 
-motor_status = exp.motor.status
-if not motor_status.IsHomed:
+if not exp.motor.status.IsHomed:
     print("Warning: motor is not homed, position may not be accurate")
     
 # =============================================================================

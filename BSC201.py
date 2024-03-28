@@ -20,24 +20,30 @@ from Thorlabs.MotionControl.Benchtop.StepperMotorCLI import *
 
 
 class BSC201:
-    def __init__(self,serial_no = '40418024',DeviceType='DRV250',**kwargs):
+    def __init__(self,serial_no = '40418024',DeviceType='DRV250',max_velocity=1,acceleration=1,**kwargs):
         self.DeviceType=DeviceType
         for k,v in kwargs.items():
             setattr(self,k,v)
         
         DeviceManagerCLI.BuildDeviceList()
 
-        self.device = device = BenchtopStepperMotor.CreateBenchtopStepperMotor(serial_no)
-        device.Connect(serial_no)
-        time.sleep(0.25)  # wait statements are important to allow settings to be sent to the device
-        if not self.is_connected:
-            raise ConnectionError('Device failed to connect')
-        self.build_device()
+        self.connect(serial_no=serial_no,build_device=True)
+        self.set_velocity_params(max_velocity,acceleration)
 
     @property
     def is_connected(self):
         return self.device.IsConnected
     
+    def connect(self,serial_no=None,build_device=True):
+        self.serial_no = serial_no = self.serial_no if serial_no is None else serial_no
+        self.device = device = BenchtopStepperMotor.CreateBenchtopStepperMotor(serial_no)
+        device.Connect(serial_no)
+        time.sleep(0.25)  # wait statements are important to allow settings to be sent to the device
+        if not self.is_connected:
+            raise ConnectionError('Device failed to connect')
+        if build_device:
+            self.build_device()
+            
     def build_device(self):
         # For benchtop devices, get the channel
         self.channel = channel = self.device.GetChannel(1)
